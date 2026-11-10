@@ -70,6 +70,10 @@ pub struct Theme {
     /// video does not nest — a reversed span inside a reversed row cancels back to
     /// normal — so the renderer must not invert anything else on the cursor row.
     pub cursor_row_inverts: bool,
+    pub urgent: Style,
+    pub soon: Style,
+    pub heading: Style,
+    pub link: Style,
 }
 
 impl Theme {
@@ -115,6 +119,10 @@ impl Theme {
             mode_insert: mode(Color::Green),
             mode_search: mode(Color::Yellow),
             cursor_row_inverts: false,
+            urgent: Style::new().fg(Color::Rgb(255, 107, 107)),
+            soon: Style::new().fg(Color::Rgb(240, 200, 100)),
+            heading: Style::new().fg(dim_grey).add_modifier(Modifier::BOLD),
+            link: Style::new().fg(Color::Rgb(130, 170, 255)),
         }
     }
 
@@ -152,6 +160,10 @@ impl Theme {
             mode_insert: mode(Color::Green),
             mode_search: mode(Color::Yellow),
             cursor_row_inverts: true,
+            urgent: Style::new().fg(Color::Red),
+            soon: Style::new().fg(Color::Yellow),
+            heading: Style::new().add_modifier(Modifier::BOLD),
+            link: Style::new().fg(Color::Blue),
         }
     }
 }

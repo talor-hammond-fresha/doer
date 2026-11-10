@@ -26,6 +26,7 @@ pub enum Input {
     /// holds a sender of its own for the timers, so a disconnect can never happen.
     /// Without this the app would block in `next` forever, holding raw mode.
     Closed,
+    StoreChanged,
 }
 
 pub struct Events {
@@ -59,6 +60,11 @@ impl Events {
     /// a dragged window corner — into one batch collapses it into a single redraw.
     pub fn drain(&self) -> impl Iterator<Item = Input> + '_ {
         self.rx.try_iter()
+    }
+
+    #[must_use]
+    pub fn sender(&self) -> Sender<Input> {
+        self.tx.clone()
     }
 
     pub fn arm_toast(&self, seq: u64, ttl: Duration) {

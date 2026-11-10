@@ -1,3 +1,4 @@
+pub mod details;
 pub mod help;
 pub mod layout;
 pub mod main_list;
@@ -14,7 +15,8 @@ use doer_core::app::{AppState, MainState, Pane, SidebarCursor, SidebarState, Toa
 use doer_core::display::ViewId;
 use doer_core::layout::Layout;
 
-use crate::ui::layout::frames;
+use crate::ui::details::DetailsView;
+use crate::ui::layout::frames_with;
 use crate::ui::main_list::ListView;
 use crate::ui::sidebar::SidebarView;
 use crate::ui::statusline::StatusView;
@@ -31,6 +33,7 @@ pub struct Screen<'a> {
     /// `None` when the sidebar is closed. A sidebar that does not fit is hidden by
     /// the layout instead, without disturbing the app's own flag.
     pub sidebar: Option<SidebarView<'a>>,
+    pub details: Option<DetailsView<'a>>,
     pub show_help: bool,
 }
 
@@ -41,6 +44,12 @@ impl<'a> Screen<'a> {
     /// Reads the app once, so the render functions below never reach back into it.
     #[must_use]
     pub fn resolve(app: &'a AppState, layout: &'a Layout, theme: &Theme) -> Self {
+        Self::resolve_at(app, layout, theme, 0)
+    }
+
+    #[must_use]
+    pub fn resolve_at(app: &'a AppState, layout: &'a Layout, theme: &Theme, now: i64) -> Self {
+        let today = now.div_euclid(doer_core::todo::SECONDS_PER_DAY);
         let (done, total) = app.counts();
         let main_focused = app.pane == Pane::Main;
 
@@ -59,6 +68,8 @@ impl<'a> Screen<'a> {
                 _ => None,
             },
             main_focused,
+            ws: Some(&app.ws),
+            today,
         };
 
         let status = StatusView {
@@ -110,10 +121,23 @@ impl<'a> Screen<'a> {
             },
         });
 
+        let details = app.geo.details_open.then(|| {
+            let todo = app.selected_todo();
+            DetailsView {
+                todo,
+                project: todo
+                    .and_then(|t| app.ws.find(&t.id))
+                    .and_then(|(bucket, _)| bucket.project().cloned())
+                    .and_then(|id| app.ws.projects().get(&id).map(|p| p.name.as_str())),
+                today,
+            }
+        });
+
         Self {
             list,
             status,
             sidebar,
+            details,
             show_help: app.help,
         }
     }
@@ -121,7 +145,7 @@ impl<'a> Screen<'a> {
 
 pub fn draw(frame: &mut Frame, app: &AppState, now: i64, theme: &Theme) {
     let layout = app.layout(now);
-    let screen = Screen::resolve(app, &layout, theme);
+    let screen = Screen::resolve_at(app, &layout, theme, now);
     render(frame, &screen, theme);
 }
 
@@ -132,7 +156,19 @@ pub fn render(frame: &mut Frame, screen: &Screen<'_>, theme: &Theme) {
         return;
     }
 
-    let frames = frames(area, screen.sidebar.is_some());
+    let frames = frames_with(area, screen.sidebar.is_some(), screen.details.is_some());
+
+    if let (Some(view), Some(area)) = (&screen.details, frames.details) {
+        details::render(frame, area, view, theme);
+    }
+    if let Some(area) = frames.details_border {
+        frame.render_widget(
+            Block::new()
+                .borders(Borders::LEFT)
+                .border_style(theme.border_idle),
+            area,
+        );
+    }
 
     if let (Some(view), Some(area)) = (&screen.sidebar, frames.sidebar) {
         sidebar::render(frame, area, view, theme);

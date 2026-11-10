@@ -172,6 +172,14 @@ impl Workspace {
         }
     }
 
+    pub fn update_meta(&mut self, id: &TodoId, change: impl FnOnce(&mut crate::todo::Meta)) {
+        if let Some((bucket, pos)) = self.find(id)
+            && let Some(todo) = self.todos_mut(&bucket).and_then(|t| t.get_mut(pos))
+        {
+            change(&mut todo.meta);
+        }
+    }
+
     pub fn toggle(&mut self, id: &TodoId, now: i64) {
         if let Some((bucket, pos)) = self.find(id)
             && let Some(todo) = self.todos_mut(&bucket).and_then(|t| t.get_mut(pos))

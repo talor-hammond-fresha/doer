@@ -203,7 +203,7 @@ fn a_todo_added_to_a_file_with_an_unreadable_entry_saves_alongside_it() {
         done: false,
         created_at: 1_786_500_000,
         completed_at: None,
-        meta: Default::default(),
+        meta: doer_core::Meta::default(),
     });
     store.save_all_todos(&todos).expect("save");
 

@@ -45,6 +45,11 @@ pub enum Action {
     Redo,
 
     Sidebar(SidebarAction),
+
+    ToggleDetails,
+    CyclePriority,
+    CopySession,
+    OpenLink(usize),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

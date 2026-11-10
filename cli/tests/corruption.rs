@@ -47,7 +47,7 @@ fn a_todo() -> Todo {
         done: false,
         created_at: 1,
         completed_at: None,
-        meta: Default::default(),
+        meta: doer_core::Meta::default(),
     }
 }
 

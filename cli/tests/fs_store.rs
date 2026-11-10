@@ -210,7 +210,7 @@ fn a_project_read_from_an_oddly_named_file_is_written_back_to_that_file() {
         done: false,
         created_at: 1,
         completed_at: None,
-        meta: Default::default(),
+        meta: doer_core::Meta::default(),
     });
     store.save_project(&file).expect("save");
 
@@ -279,7 +279,7 @@ fn a_saved_project_reloads_with_its_todos() {
         done: true,
         created_at: 10,
         completed_at: Some(20),
-        meta: Default::default(),
+        meta: doer_core::Meta::default(),
     }];
     store.save_project(&file).expect("save");
 
@@ -376,7 +376,7 @@ fn an_unreadable_todo_inside_a_project_does_not_lock_the_project() {
         done: false,
         created_at: 2,
         completed_at: None,
-        meta: Default::default(),
+        meta: doer_core::Meta::default(),
     });
     store.save_project(&file).expect("save is allowed");
 

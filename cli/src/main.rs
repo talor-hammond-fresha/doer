@@ -11,7 +11,7 @@ use doer_core::{ProjectId, Todo};
 use ratatui::crossterm::event::{KeyCode as CtKeyCode, KeyEvent, KeyModifiers};
 
 use doer_tui::event::{Events, Input};
-use doer_tui::store::FsStore;
+use doer_tui::store::{FsStore, SharedStore};
 use doer_tui::term::{self, TerminalGuard};
 use doer_tui::ui;
 use doer_tui::ui::theme::{ColorDepth, Theme};
@@ -26,6 +26,7 @@ const USAGE: &str = "\
 doer — a vim-flavoured terminal todo app
 
 Usage: doer [options]
+       doer <subcommand> ...
 
 Options:
   -h, --help       Print this help
@@ -37,8 +38,17 @@ Press ? inside the app for the keybindings.";
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if let Some(arg) = args.first() {
+        if let Some(result) = doer_tui::cmd::run(arg, args.get(1..).unwrap_or_default(), now()) {
+            return match result {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("doer: {error:#}");
+                    ExitCode::FAILURE
+                }
+            };
+        }
         match arg.as_str() {
-            "-h" | "--help" => println!("{USAGE}"),
+            "-h" | "--help" => println!("{USAGE}\n\n{}", doer_tui::cmd::USAGE),
             "-V" | "--version" => println!("doer {VERSION}"),
             other => {
                 eprintln!("doer: unrecognised argument '{other}'\n\n{USAGE}");
@@ -60,18 +70,20 @@ fn main() -> ExitCode {
 }
 
 fn run() -> anyhow::Result<()> {
-    let store = FsStore::new()?;
+    let store = SharedStore(std::sync::Arc::new(FsStore::new()?));
     let loaded = store.load();
+    let root = store.0.root().to_path_buf();
 
     let mut guard = TerminalGuard::new()?;
     let size = guard.tty.size()?;
-    let geo = Geometry::new(size.width, size.height, true);
+    let geo = Geometry::new(size.width, size.height, true).with_details(true);
     let (mut app, startup) = AppState::from_loaded(loaded, geo);
 
-    let mut saver = Saver::start(Box::new(store));
+    let mut saver = Saver::start(Box::new(store.clone()));
     let _ = term::SAVER.set(Box::new(saver.flush_handle()));
 
     let events = Events::start(now);
+    doer_tui::watch::spawn(root, events.sender(), || Input::StoreChanged);
     let theme = Theme::for_depth(ColorDepth::detect());
 
     for effect in startup {
@@ -80,6 +92,7 @@ fn run() -> anyhow::Result<()> {
 
     let mut dirty = true;
     let mut saving_broken = false;
+    let mut reload_pending = false;
     loop {
         if dirty {
             let moment = now();
@@ -98,6 +111,10 @@ fn run() -> anyhow::Result<()> {
         for input in batch {
             if matches!(input, Input::Closed) {
                 return finish(&mut saver, FLUSH_TIMEOUT);
+            }
+            if matches!(input, Input::StoreChanged) {
+                reload_pending = true;
+                continue;
             }
             for action in actions_for(input, &app) {
                 // reduce puts its saves and deletes before Quit, which is what makes
@@ -127,6 +144,17 @@ fn run() -> anyhow::Result<()> {
                 }
             }
             dirty = true;
+        }
+
+        // Flush first, or the load reads a file our own pending write is about to replace.
+        if reload_pending && app.can_reload() && !saving_broken {
+            reload_pending = false;
+            if saver.flush(FLUSH_TIMEOUT) {
+                let loaded = store.load();
+                if app.reload(&loaded.value, now()) {
+                    dirty = true;
+                }
+            }
         }
 
         // A panic on the save thread would otherwise be invisible: the app keeps taking
@@ -184,6 +212,8 @@ fn apply(effect: &Effect, app: &AppState, saver: &Saver, events: &Events) {
                 events.arm_toast(toast.seq, Duration::from_millis(ttl));
             }
         }
+        Effect::Copy(text) => doer_tui::system::copy(text),
+        Effect::Open(url) => doer_tui::system::open(url),
         Effect::Quit => {}
     }
 }
@@ -226,7 +256,7 @@ fn actions_for(input: Input, app: &AppState) -> Vec<Action> {
             .collect(),
         // A paste outside a text field is dropped rather than read as keybindings, and
         // `Closed` is handled by the event loop, which has to leave rather than reduce.
-        Input::Paste(_) | Input::Closed => Vec::new(),
+        Input::Paste(_) | Input::Closed | Input::StoreChanged => Vec::new(),
         Input::Resize(width, height) => vec![Action::Resize(width, height)],
         Input::DayChanged => vec![Action::DayChanged],
         Input::ToastExpire(seq) => vec![Action::ToastExpire(seq)],

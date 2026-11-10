@@ -3,32 +3,32 @@ source: cli/tests/render.rs
 expression: text_of(terminal.backend().buffer())
 ---
                                                                                                     |
-                   Normal                          Editing                                          |
+                   Normal                          Details                                          |
                                                                                                     |
-                   j k ↓ ↑    navigate             enter      confirm                               |
-                   g gg G     start / end          esc        cancel                                |
-                   ctrl+d/u   half page down/up    ← →        move caret                            |
-                   a          add todo             home end   start/end of line                     |
-                   e i        edit todo            ctrl+w     delete word back                      |
-                   d          delete todo          ctrl+u     delete to start                       |
-                   space      toggle done          delete     delete at caret                       |
-                   J K        reorder todo         paste      inserted as text                      |
-                   v          visual mode                                                           |
-                   /          search               Search                                           |
-                   u ctrl+r   undo / redo                                                           |
-                   h ←        focus sidebar        type       filter todos                          |
-                                                   enter      browse matches                        |
-                   Visual                          j k        next/previous match                   |
-                                                   esc        cancel search                         |
+                   j k ↓ ↑    navigate             enter o    details panel                         |
+                   g gg G     start / end          p          cycle priority                        |
+                   ctrl+d/u   half page down/up    y          copy resume cmd                       |
+                   a          add todo             x 1-9      open link                             |
+                   e i        edit todo                                                             |
+                   d          delete todo          Editing                                          |
+                   space      toggle done                                                           |
+                   J K        reorder todo         enter      confirm                               |
+                   v          visual mode          esc        cancel                                |
+                   /          search               ← →        move caret                            |
+                   u ctrl+r   undo / redo          home end   start/end of line                     |
+                   h ←        focus sidebar        ctrl+w     delete word back                      |
+                                                   ctrl+u     delete to start                       |
+                   Visual                          delete     delete at caret                       |
+                                                   paste      inserted as text                      |
                    j k ↓ ↑    extend selection                                                      |
-                   J K        reorder selected     Sidebar                                          |
+                   J K        reorder selected     Search                                           |
                    d          delete selected                                                       |
-                   space      toggle selected      j k ↓ ↑    navigate                              |
-                   esc        exit visual          enter l →  select project                        |
-                                                   a          add project                           |
-                   Global                          s          add subproject                        |
-                                                   e i        rename project                        |
-                   \          toggle sidebar       d          delete project                        |
-                   tab        switch focus         J K        reorder projects                      |
-                   ?          help                 y n        answer Delete?                        |
-                   q ctrl+c   quit                                                                  |
+                   space      toggle selected      type       filter todos                          |
+                   esc        exit visual          enter      browse matches                        |
+                                                   j k        next/previous match                   |
+                   Global                          esc        cancel search                         |
+                                                                                                    |
+                   \          toggle sidebar       Sidebar                                          |
+                   tab        switch focus                                                          |
+                   ?          help                 j k ↓ ↑    navigate                              |
+                   q ctrl+c   quit                 enter l →  select project                        |

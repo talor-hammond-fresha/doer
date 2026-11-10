@@ -443,7 +443,7 @@ mod tests {
             done: false,
             created_at: 0,
             completed_at: None,
-            meta: Default::default(),
+            meta: crate::todo::Meta::default(),
         }
     }
 

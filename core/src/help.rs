@@ -76,6 +76,15 @@ static LEFT: &[Section] = &[
 
 static RIGHT: &[Section] = &[
     Section {
+        title: "Details",
+        bindings: &[
+            ("enter o", "details panel"),
+            ("p", "cycle priority"),
+            ("y", "copy resume cmd"),
+            ("x 1-9", "open link"),
+        ],
+    },
+    Section {
         title: "Editing",
         bindings: &[
             ("enter", "confirm"),

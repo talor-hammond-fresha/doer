@@ -259,18 +259,23 @@ fn main_normal_ignores_unbound_keys() {
         &[
             k('l'),
             p(C::Right),
-            p(C::Enter),
             p(C::Escape),
-            k('y'),
-            k('p'),
             k('n'),
-            k('o'),
-            k('x'),
-            k('1'),
             ctrl('j'),
             ctrl('w'),
         ],
     );
+}
+
+#[test]
+fn main_normal_reaches_the_details() {
+    let ctx = main_ctx(MainMode::Normal);
+    assert_map(ctx, p(C::Enter), Some(&A::ToggleDetails));
+    assert_map(ctx, k('o'), Some(&A::ToggleDetails));
+    assert_map(ctx, k('p'), Some(&A::CyclePriority));
+    assert_map(ctx, k('y'), Some(&A::CopySession));
+    assert_map(ctx, k('x'), Some(&A::OpenLink(0)));
+    assert_map(ctx, k('3'), Some(&A::OpenLink(2)));
 }
 
 // --- Main / Insert --------------------------------------------------------

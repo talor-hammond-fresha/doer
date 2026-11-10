@@ -1412,3 +1412,58 @@ fn a_stopped_writer_arms_the_quit_guard_and_cannot_be_cleared() {
         "and then obey"
     );
 }
+
+fn snapshot_of(app: &AppState) -> doer_core::StoreSnapshot {
+    doer_core::StoreSnapshot {
+        all_todos: app.ws.todos(&Bucket::All).to_vec(),
+        projects: Vec::new(),
+        read_only: Vec::new(),
+    }
+}
+
+#[test]
+fn a_reload_of_what_we_already_hold_changes_nothing() {
+    let mut state = app(&["one", "two"]);
+    let snapshot = snapshot_of(&state);
+    assert!(!state.reload(&snapshot, NOW));
+}
+
+#[test]
+fn a_reload_adopts_another_process_write_and_keeps_the_cursor_on_its_todo() {
+    let mut state = app(&["one", "two"]);
+    app::reduce(&mut state, &Action::Cursor(Motion::Down), NOW);
+    let cursor = state.cursor.clone();
+
+    let mut snapshot = snapshot_of(&state);
+    let mut added = Todo::new("from an agent", NOW);
+    added.meta.next_step = Some("do the thing".into());
+    snapshot.all_todos.insert(0, added);
+
+    assert!(state.reload(&snapshot, NOW));
+    assert_eq!(state.ws.todos(&Bucket::All).len(), 3);
+    assert_eq!(state.cursor, cursor);
+    assert!(
+        !state.undo.can_undo(),
+        "undo would write the old files back"
+    );
+}
+
+#[test]
+fn a_reload_waits_while_a_todo_is_being_typed() {
+    let mut state = app(&["one"]);
+    app::reduce(&mut state, &Action::AddTodo, NOW);
+    assert!(!state.can_reload());
+    app::reduce(&mut state, &Action::CancelEdit, NOW);
+    assert!(state.can_reload());
+}
+
+#[test]
+fn cycling_priority_saves_the_todo_s_file() {
+    let mut state = app(&["one"]);
+    let effects = app::reduce(&mut state, &Action::CyclePriority, NOW);
+    assert!(effects.contains(&Effect::Save(doer_core::Target::AllTodos)));
+    assert_eq!(
+        state.selected_todo().and_then(|t| t.meta.priority.clone()),
+        Some("now".to_string())
+    );
+}

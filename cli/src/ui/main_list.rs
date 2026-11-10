@@ -27,6 +27,8 @@ pub struct ListView<'a> {
     pub editing: Option<&'a TodoId>,
     /// False when the sidebar holds the keyboard, which dims the cursor row.
     pub main_focused: bool,
+    pub ws: Option<&'a doer_core::Workspace>,
+    pub today: i64,
 }
 
 pub fn render(frame: &mut Frame, area: Rect, view: &ListView<'_>, theme: &Theme) {
@@ -121,7 +123,21 @@ fn todo_line(todo: &TodoRow, view: &ListView<'_>, theme: &Theme) -> Line<'static
                 theme.text
             },
         ));
-        spans.push(Span::raw(if todo.done { "◉ " } else { "◯ " }));
+        let mark = view
+            .ws
+            .and_then(|ws| ws.get(&todo.id))
+            .and_then(|t| crate::ui::details::mark_style(t, view.today, theme));
+        let glyph = if todo.done {
+            "◉ "
+        } else if mark.is_some() {
+            "● "
+        } else {
+            "◯ "
+        };
+        spans.push(match mark {
+            Some(style) => Span::styled(glyph, style),
+            None => Span::raw(glyph),
+        });
     } else {
         spans.push(Span::raw(" ".repeat(text::to_usize(PREFIX_WIDTH))));
     }

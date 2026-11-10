@@ -28,7 +28,7 @@ fn todo(id: &str, text: &str, age_days: i64) -> Todo {
         done: false,
         created_at: NOW - age_days * DAY,
         completed_at: None,
-        meta: Default::default(),
+        meta: doer_core::Meta::default(),
     }
 }
 
@@ -36,7 +36,7 @@ fn done(id: &str, text: &str, age_days: i64, completed_days: i64) -> Todo {
     Todo {
         done: true,
         completed_at: Some(NOW - completed_days * DAY),
-        meta: Default::default(),
+        meta: doer_core::Meta::default(),
         ..todo(id, text, age_days)
     }
 }
@@ -347,4 +347,29 @@ mod caret {
         // Content column starts at 38, four columns of prefix, then 买菜 (4) + " ok" (3).
         assert_eq!(cursor_of(&mut terminal), (38 + 4 + 7, 3));
     }
+}
+
+#[test]
+fn frame_with_the_details_panel() {
+    let mut fixture = Fixture::new(150, 30);
+    fixture.app.geo.details_open = true;
+    let id = TodoId::from("bbbbbbbbbbbbbbb1");
+    fixture.app.ws.update_meta(&id, |m| {
+        m.priority = Some("now".into());
+        m.due = Some("2023-11-15".into());
+        m.next_step = Some("Open the #team-worms thread and confirm stale ratings are fine".into());
+        m.links.push(doer_core::Link {
+            label: "Slack thread".into(),
+            url: "https://shedul.slack.com/archives/C1/p1".into(),
+        });
+        m.links.push(doer_core::Link {
+            label: String::new(),
+            url: "https://github.com/freshaengineering/x/pull/2703".into(),
+        });
+        m.context
+            .push("David is waiting on this since Monday".into());
+        m.session = Some("cd ~/code/app-reviews && claude --resume 1234".into());
+    });
+    let terminal = fixture.render();
+    insta::assert_snapshot!(text_of(terminal.backend().buffer()));
 }

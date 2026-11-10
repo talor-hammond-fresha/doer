@@ -15,7 +15,7 @@ use crate::project::Project;
 use crate::reorder::{self, Blocked, Reorder};
 use crate::store::{Loaded, ProjectFile, StoreError, StoreSnapshot, Target};
 use crate::text::TextInput;
-use crate::todo::Todo;
+use crate::todo::{Priority, Todo};
 use crate::undo::{Snapshot, UndoStack};
 use crate::workspace::{Bucket, Workspace};
 
@@ -48,6 +48,8 @@ pub enum Effect {
     Save(Target),
     DeleteProject(ProjectId),
     Toast(Toast),
+    Copy(String),
+    Open(String),
     Quit,
 }
 
@@ -378,6 +380,64 @@ impl AppState {
             .iter()
             .map(|todo| todo.id.clone())
             .collect()
+    }
+
+    #[must_use]
+    pub fn selected_todo(&self) -> Option<&Todo> {
+        self.cursor.as_ref().and_then(|id| self.ws.get(id))
+    }
+
+    #[must_use]
+    pub fn can_reload(&self) -> bool {
+        matches!(self.main, MainState::Normal | MainState::SearchNav { .. })
+            && matches!(self.sidebar, SidebarState::Normal)
+            && self.session.is_none()
+            && self.dirty.is_empty()
+    }
+
+    /// Drops undo history: replaying it would write the old files back over the change
+    /// that was just picked up.
+    pub fn reload(&mut self, snapshot: &StoreSnapshot, now: i64) -> bool {
+        if self.matches(snapshot) {
+            return false;
+        }
+        let mut ws = workspace_from(snapshot);
+        for target in &snapshot.read_only {
+            ws.mark_read_only(bucket_of(target));
+        }
+        self.ws = ws;
+        self.undo = UndoStack::default();
+        if let ViewId::Project(id) = &self.view
+            && self.ws.projects().get(id).is_none()
+        {
+            self.view = ViewId::All;
+        }
+        if let SidebarCursor::Project(id) = &self.sidebar_cursor
+            && self.ws.projects().get(id).is_none()
+        {
+            self.sidebar_cursor = SidebarCursor::All;
+        }
+        self.resolve_cursor(ResolveCursor::ById, None);
+        self.refresh_scroll(now);
+        true
+    }
+
+    fn matches(&self, snapshot: &StoreSnapshot) -> bool {
+        if self.ws.todos(&Bucket::All) != snapshot.all_todos.as_slice()
+            || self.ws.projects().len() != snapshot.projects.len()
+        {
+            return false;
+        }
+        snapshot.projects.iter().all(|file| {
+            self.ws
+                .project_file(&file.id)
+                .is_some_and(|(project, todos)| {
+                    project.name == file.name
+                        && project.index == file.index
+                        && project.parent_id == file.parent_id
+                        && todos == file.todos.as_slice()
+                })
+        })
     }
 
     #[must_use]
@@ -781,6 +841,9 @@ fn chrome(state: &mut AppState, action: &Action) -> Option<Vec<Effect>> {
             }
         }
         Action::ForceQuit => effects.push(Effect::Quit),
+        Action::ToggleDetails => state.geo.details_open = !state.geo.details_open,
+        Action::CopySession => effects.extend(copy_session(state)),
+        Action::OpenLink(n) => effects.extend(open_link(state, *n)),
         _ => return None,
     }
     Some(effects)
@@ -796,6 +859,7 @@ fn content(state: &mut AppState, action: &Action, now: i64) -> Vec<Effect> {
         Action::DeleteTodo | Action::DeleteSelected => effects.extend(delete(state)),
         Action::ToggleTodo | Action::ToggleSelected => effects.extend(toggle(state, now)),
         Action::Move(dir) => effects.extend(move_todos(state, *dir)),
+        Action::CyclePriority => effects.extend(cycle_priority(state)),
 
         Action::EnterVisual => {
             if let Some(cursor) = state.cursor.clone() {
@@ -981,6 +1045,48 @@ fn touched_for(ws: &Workspace, id: &TodoId) -> Touched {
         Some((bucket, _)) => Touched::saving(target_of(&bucket)),
         None => Touched::nothing(),
     }
+}
+
+fn cycle_priority(state: &mut AppState) -> Vec<Effect> {
+    let Some(id) = state.cursor.clone() else {
+        return Vec::new();
+    };
+    let ids = [id];
+    let changed = state.mutate(|ws| {
+        ws.update_meta(&ids[0], |meta| {
+            meta.priority = Priority::cycle(meta.priority()).map(|p| p.as_str().to_string());
+        });
+        ((), touched_for_all(ws, &ids))
+    });
+    match changed {
+        Ok(()) => Vec::new(),
+        Err(locked) => state.refuse(&locked),
+    }
+}
+
+fn copy_session(state: &mut AppState) -> Vec<Effect> {
+    let Some(todo) = state.selected_todo() else {
+        return Vec::new();
+    };
+    let (text, what) = match (&todo.meta.session, &todo.meta.next_step) {
+        (Some(session), _) => (session.clone(), "resume command"),
+        (None, Some(next)) => (next.clone(), "next step"),
+        (None, None) => (todo.text.clone(), "todo"),
+    };
+    let toast = state.new_toast(format!("-- copied {what} --"), ToastLevel::Info);
+    vec![Effect::Copy(text), Effect::Toast(toast)]
+}
+
+fn open_link(state: &mut AppState, n: usize) -> Vec<Effect> {
+    let url = state
+        .selected_todo()
+        .and_then(|todo| todo.meta.links.get(n))
+        .map(|link| link.url.clone());
+    if let Some(url) = url {
+        return vec![Effect::Open(url)];
+    }
+    let toast = state.new_toast(format!("-- no link {} --", n + 1), ToastLevel::Info);
+    vec![Effect::Toast(toast)]
 }
 
 fn touched_for_all(ws: &Workspace, ids: &[TodoId]) -> Touched {

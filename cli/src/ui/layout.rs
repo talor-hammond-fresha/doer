@@ -1,7 +1,7 @@
 //! Where each region of the screen goes. Purely geometric — nothing here reads state
 //! beyond the sidebar flag.
 
-use doer_core::layout::{BORDER_WIDTH, Geometry, PAD_Y_TOP, SIDEBAR_WIDTH};
+use doer_core::layout::{BORDER_WIDTH, DETAILS_WIDTH, Geometry, PAD_Y_TOP, SIDEBAR_WIDTH};
 use ratatui::layout::{Constraint, Layout, Rect};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -15,14 +15,21 @@ pub struct Frames {
     /// False when the sidebar was hidden because it would not fit, so the caller can
     /// keep its own `sidebar_open` flag untouched and restore it on a widening.
     pub sidebar_fits: bool,
+    pub details: Option<Rect>,
+    pub details_border: Option<Rect>,
 }
 
 #[must_use]
 pub fn frames(area: Rect, sidebar_open: bool) -> Frames {
+    frames_with(area, sidebar_open, false)
+}
+
+#[must_use]
+pub fn frames_with(area: Rect, sidebar_open: bool, details_open: bool) -> Frames {
     // Both the geometry the scroll maths uses and the rectangles drawn here have to
     // agree about the sidebar and the column width, so both come from `Geometry`. Two
     // copies of this arithmetic is exactly the class of bug this port removes.
-    let geo = Geometry::new(area.width, area.height, sidebar_open);
+    let geo = Geometry::new(area.width, area.height, sidebar_open).with_details(details_open);
     let sidebar_fits = geo.sidebar_visible() || !sidebar_open;
     let (sidebar, border, body) = if sidebar_open && sidebar_fits {
         let [sidebar, border, body] = Layout::horizontal([
@@ -40,6 +47,18 @@ pub fn frames(area: Rect, sidebar_open: bool) -> Frames {
     // under the list. Rows are built to fit it: the date columns shrink or drop
     // (`DateColumns::fit`) and the mode bar shortens its counter, so nothing needs to
     // overflow into the padding to stay readable.
+    let (body, details_border, details) = if geo.details_visible() {
+        let [body, border, details] = Layout::horizontal([
+            Constraint::Min(0),
+            Constraint::Length(BORDER_WIDTH),
+            Constraint::Length(DETAILS_WIDTH),
+        ])
+        .areas(body);
+        (body, Some(border), Some(details))
+    } else {
+        (body, None, None)
+    };
+
     let column = centred_column(body, geo);
     let [_, content, _, search, _, modebar, _] = Layout::vertical([
         Constraint::Length(PAD_Y_TOP),
@@ -59,6 +78,8 @@ pub fn frames(area: Rect, sidebar_open: bool) -> Frames {
         search,
         modebar,
         sidebar_fits,
+        details,
+        details_border,
     }
 }
 

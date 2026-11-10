@@ -8,6 +8,7 @@ use crate::workspace::{Bucket, Workspace};
 
 pub const SIDEBAR_WIDTH: u16 = 35;
 pub const BORDER_WIDTH: u16 = 1;
+pub const DETAILS_WIDTH: u16 = 50;
 /// The list stops growing here. A row is a checkbox, a short line of text and a date;
 /// past this the eye has to travel a long way from one to the other, and the screen
 /// looks emptier for being fuller.
@@ -37,6 +38,7 @@ pub struct Geometry {
     pub term_width: u16,
     pub term_height: u16,
     pub sidebar_open: bool,
+    pub details_open: bool,
 }
 
 impl Geometry {
@@ -46,7 +48,24 @@ impl Geometry {
             term_width,
             term_height,
             sidebar_open,
+            details_open: false,
         }
+    }
+
+    #[must_use]
+    pub fn with_details(mut self, open: bool) -> Self {
+        self.details_open = open;
+        self
+    }
+
+    #[must_use]
+    pub fn details_visible(&self) -> bool {
+        let without = if self.sidebar_visible() {
+            self.term_width.saturating_sub(SIDEBAR_WIDTH + BORDER_WIDTH)
+        } else {
+            self.term_width
+        };
+        self.details_open && without >= DETAILS_WIDTH + BORDER_WIDTH + CONTENT_MIN_WIDTH + 10
     }
 
     /// The sidebar hides itself when the main column could not keep its minimum
@@ -58,10 +77,15 @@ impl Geometry {
 
     #[must_use]
     pub fn available_width(&self) -> u16 {
-        if self.sidebar_visible() {
+        let width = if self.sidebar_visible() {
             self.term_width.saturating_sub(SIDEBAR_WIDTH + BORDER_WIDTH)
         } else {
             self.term_width
+        };
+        if self.details_visible() {
+            width.saturating_sub(DETAILS_WIDTH + BORDER_WIDTH)
+        } else {
+            width
         }
     }
 
@@ -579,6 +603,7 @@ mod tests {
         term_width: 200,
         term_height: 40,
         sidebar_open: false,
+        details_open: false,
     };
 
     fn empty_ws() -> Workspace {
@@ -960,7 +985,7 @@ mod narrow_tests {
             done: true,
             created_at: 0,
             completed_at: Some(0),
-            meta: Default::default(),
+            meta: crate::todo::Meta::default(),
         };
         let without_date = Todo {
             id: TodoId::from("2222222222222222"),
@@ -968,7 +993,7 @@ mod narrow_tests {
             done: true,
             created_at: 0,
             completed_at: None,
-            meta: Default::default(),
+            meta: crate::todo::Meta::default(),
         };
         let ws = Workspace::new(
             vec![with_date, without_date],

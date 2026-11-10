@@ -180,6 +180,14 @@ fn main_normal(ctx: InputContext, key: KeyPress) -> Option<Action> {
         KeyCode::Char('/') => Some(Action::EnterSearch),
         KeyCode::Char('u') => Some(Action::Undo),
         KeyCode::Char('h') | KeyCode::Left if ctx.sidebar_open => Some(Action::SwitchFocus),
+        KeyCode::Enter | KeyCode::Char('o') => Some(Action::ToggleDetails),
+        KeyCode::Char('p') => Some(Action::CyclePriority),
+        KeyCode::Char('y') => Some(Action::CopySession),
+        KeyCode::Char('x') => Some(Action::OpenLink(0)),
+        KeyCode::Char(c @ '1'..='9') => c
+            .to_digit(10)
+            .and_then(|n| usize::try_from(n).ok())
+            .map(|n| Action::OpenLink(n - 1)),
         _ => None,
     }
 }
