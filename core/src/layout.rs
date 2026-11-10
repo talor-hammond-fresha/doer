@@ -4,6 +4,7 @@ use std::ops::Range;
 use crate::display::{DisplayList, ViewId};
 use crate::id::TodoId;
 use crate::text;
+use crate::todo::Priority;
 use crate::workspace::{Bucket, Workspace};
 
 pub const SIDEBAR_WIDTH: u16 = 35;
@@ -30,6 +31,8 @@ const MIN_TEXT_WIDTH: usize = 12;
 const MIN_COLUMN: usize = 2;
 const AGE_LABEL: &str = "Created";
 const COMPLETED_LABEL: &str = "Completed";
+const PRIORITY_LABEL: &str = "Priority";
+const DUE_LABEL: &str = "Due";
 pub const EMPTY_HINT: &str = "press 'a' to add a new todo";
 
 /// Terminal geometry, and the derived widths every layout decision reads.
@@ -127,6 +130,8 @@ impl Geometry {
 /// padding, so the alignment there is unchanged.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DateColumns {
+    pub priority: Option<usize>,
+    pub due: Option<usize>,
     pub age: Option<usize>,
     pub completed: Option<usize>,
     /// Whether the header names these columns. A column narrower than its own label
@@ -142,6 +147,8 @@ pub struct DateColumns {
 /// whole list sideways underneath them.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct DateWidths {
+    pub priority: usize,
+    pub due: usize,
     pub age: usize,
     pub completed: usize,
 }
@@ -170,40 +177,61 @@ impl DateColumns {
         let bare_completed = widths.completed.max(MIN_COLUMN);
         let named_age = bare_age.max(text::width(AGE_LABEL));
         let named_completed = bare_completed.max(text::width(COMPLETED_LABEL));
+        let bare_priority = (widths.priority > 0).then_some(widths.priority);
+        let named_priority = bare_priority.map(|w| w.max(text::width(PRIORITY_LABEL)));
+        let bare_due = (widths.due > 0).then_some(widths.due);
+        let named_due = bare_due.map(|w| w.max(text::width(DUE_LABEL)));
 
         // Widest arrangement first; the first that leaves the text a workable column wins.
-        let candidates: [(Option<usize>, Option<usize>, bool); 4] = if has_completed {
-            [
-                (Some(named_age), Some(named_completed), true),
-                (Some(bare_age), Some(bare_completed), false),
-                (Some(bare_age), None, false),
-                (None, None, false),
-            ]
-        } else {
-            [
-                (Some(named_age), None, true),
-                (Some(bare_age), None, false),
-                (None, None, false),
-                (None, None, false),
-            ]
+        let mut candidates: Vec<Self> = Vec::with_capacity(6);
+        let mut add = |priority, due, age, completed, labeled| {
+            candidates.push(Self {
+                priority,
+                due,
+                age,
+                completed,
+                labeled,
+                text_width: 0,
+            });
         };
+        if has_completed {
+            add(
+                named_priority,
+                named_due,
+                Some(named_age),
+                Some(named_completed),
+                true,
+            );
+            add(
+                bare_priority,
+                bare_due,
+                Some(bare_age),
+                Some(bare_completed),
+                false,
+            );
+        } else {
+            add(named_priority, named_due, Some(named_age), None, true);
+        }
+        add(bare_priority, bare_due, Some(bare_age), None, false);
+        add(bare_priority, bare_due, None, None, false);
+        add(None, bare_due, None, None, false);
 
-        for (age, completed, labeled) in candidates {
-            let right = Self::right_width(age, completed);
-            let text_width = budget.saturating_sub(right);
+        for candidate in candidates {
+            let right = candidate.width();
             if right == 0 {
                 break;
             }
+            let text_width = budget.saturating_sub(right);
             if text_width >= MIN_TEXT_WIDTH {
                 return Self {
-                    age,
-                    completed,
-                    labeled,
                     text_width,
+                    ..candidate
                 };
             }
         }
         Self {
+            priority: None,
+            due: None,
             age: None,
             completed: None,
             labeled: false,
@@ -212,13 +240,12 @@ impl DateColumns {
     }
 
     #[must_use]
-    pub fn right_width(age: Option<usize>, completed: Option<usize>) -> usize {
-        age.map_or(0, |w| 2 + w) + completed.map_or(0, |w| 2 + w)
-    }
-
-    #[must_use]
     pub fn width(self) -> usize {
-        Self::right_width(self.age, self.completed)
+        [self.priority, self.due, self.age, self.completed]
+            .into_iter()
+            .flatten()
+            .map(|w| 2 + w)
+            .sum()
     }
 
     /// The header label, spaced so each word ends where its column ends.
@@ -227,15 +254,16 @@ impl DateColumns {
         if !self.labeled {
             return String::new();
         }
-        match (self.age, self.completed) {
-            (Some(age), Some(completed)) => format!(
-                "{}  {}",
-                text::pad_start(AGE_LABEL, age),
-                text::pad_start(COMPLETED_LABEL, completed)
-            ),
-            (Some(age), None) => text::pad_start(AGE_LABEL, age),
-            _ => String::new(),
-        }
+        [
+            (self.priority, PRIORITY_LABEL),
+            (self.due, DUE_LABEL),
+            (self.age, AGE_LABEL),
+            (self.completed, COMPLETED_LABEL),
+        ]
+        .into_iter()
+        .filter_map(|(width, label)| width.map(|w| text::pad_start(label, w)))
+        .collect::<Vec<_>>()
+        .join("  ")
     }
 }
 
@@ -257,6 +285,8 @@ pub struct TodoRow {
     pub line_index: usize,
     pub line_count: usize,
     pub done: bool,
+    pub priority: Option<Priority>,
+    pub due: Option<(String, DueTone)>,
     pub age: String,
     pub completed_age: Option<String>,
     /// Column widths the layout committed to, so the renderer pads to the same
@@ -264,6 +294,44 @@ pub struct TodoRow {
     pub columns: DateColumns,
     /// Column of the text caret on this line, when the todo is being edited.
     pub caret_col: Option<u16>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DueTone {
+    Overdue,
+    Today,
+    Upcoming,
+}
+
+#[must_use]
+pub fn due_label(day: i64, today: i64) -> (String, DueTone) {
+    const WEEKDAYS: [&str; 7] = ["Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"];
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    match day - today {
+        n if n < 0 => (format!("{}d late", -n), DueTone::Overdue),
+        0 => ("today".into(), DueTone::Today),
+        1 => ("tmrw".into(), DueTone::Upcoming),
+        2..=6 => (
+            usize::try_from(day.rem_euclid(7))
+                .ok()
+                .and_then(|i| WEEKDAYS.get(i))
+                .copied()
+                .unwrap_or("?")
+                .to_string(),
+            DueTone::Upcoming,
+        ),
+        _ => {
+            let (_, m, d) = crate::todo::ymd_of(day);
+            let month = usize::try_from(m - 1)
+                .ok()
+                .and_then(|i| MONTHS.get(i))
+                .copied()
+                .unwrap_or("?");
+            (format!("{d} {month}"), DueTone::Upcoming)
+        }
+    }
 }
 
 impl TodoRow {
@@ -466,6 +534,15 @@ impl Builder {
             String::new()
         };
         let completed_age = completed_age.filter(|_| columns.completed.is_some());
+        let priority = todo
+            .meta
+            .priority()
+            .filter(|_| columns.priority.is_some() && !done);
+        let due = todo
+            .meta
+            .due_day()
+            .filter(|_| columns.due.is_some() && !done)
+            .map(|day| due_label(day, now.div_euclid(crate::todo::SECONDS_PER_DAY)));
         let text_width = columns.text_width;
 
         let editing = hints.editing.as_ref().filter(|(id, _, _)| *id == todo.id);
@@ -496,6 +573,8 @@ impl Builder {
                 line_index,
                 line_count,
                 done,
+                priority,
+                due: due.clone(),
                 age: age.clone(),
                 completed_age: completed_age.clone(),
                 columns,
@@ -522,6 +601,15 @@ fn section_widths(entries: &[crate::display::Entry<'_>], done: bool, now: i64) -
             None
         };
         widths.observe(&age, completed.as_deref());
+        if !done {
+            if let Some(p) = entry.todo.meta.priority() {
+                widths.priority = widths.priority.max(text::width(p.as_str()));
+            }
+            if let Some(day) = entry.todo.meta.due_day() {
+                let (label, _) = due_label(day, now.div_euclid(crate::todo::SECONDS_PER_DAY));
+                widths.due = widths.due.max(text::width(&label));
+            }
+        }
     }
     widths
 }
@@ -715,6 +803,8 @@ mod tests {
                 right: DateColumns::fit(
                     WIDE.content_width(),
                     DateWidths {
+                        priority: 0,
+                        due: 0,
                         age: 2,
                         completed: 2
                     },
@@ -1025,6 +1115,8 @@ mod narrow_tests {
         let columns = DateColumns::fit(
             200,
             DateWidths {
+                priority: 0,
+                due: 0,
                 age: 2,
                 completed: 2,
             },
@@ -1048,6 +1140,8 @@ mod narrow_tests {
         let columns = DateColumns::fit(
             200,
             DateWidths {
+                priority: 0,
+                due: 0,
                 age: 12,
                 completed: 2,
             },
@@ -1063,6 +1157,8 @@ mod narrow_tests {
         let columns = DateColumns::fit(
             34,
             DateWidths {
+                priority: 0,
+                due: 0,
                 age: 2,
                 completed: 2,
             },
@@ -1117,6 +1213,8 @@ mod narrow_tests {
     #[test]
     fn a_header_only_advertises_the_columns_that_are_drawn() {
         let narrow = DateWidths {
+            priority: 0,
+            due: 0,
             age: 2,
             completed: 2,
         };

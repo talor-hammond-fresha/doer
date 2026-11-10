@@ -10,8 +10,9 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 
+use doer_core::Priority;
 use doer_core::TodoId;
-use doer_core::layout::{Layout, PREFIX_WIDTH, Row, TodoRow};
+use doer_core::layout::{DueTone, Layout, PREFIX_WIDTH, Row, TodoRow};
 use doer_core::text;
 
 use crate::ui::theme::Theme;
@@ -97,8 +98,8 @@ fn todo_line(todo: &TodoRow, view: &ListView<'_>, theme: &Theme) -> Line<'static
         .is_some_and(|range| range.contains(&todo.entry_index));
     let is_editing = view.editing == Some(&todo.id);
 
-    let right = right_column(todo);
-    let right_width = text::width(&right);
+    let right = right_column(todo, theme);
+    let right_width = todo.columns.width();
     // The layout already decided this and wrapped the text to it. Recomputing it here
     // would be a second opinion that can disagree.
     let text_width = todo.columns.text_width;
@@ -148,14 +149,11 @@ fn todo_line(todo: &TodoRow, view: &ListView<'_>, theme: &Theme) -> Line<'static
     spans.push(Span::raw(
         " ".repeat(text_width.saturating_sub(text::width(&todo.line))),
     ));
-    spans.push(Span::styled(
-        if todo.is_first_line() {
-            right
-        } else {
-            " ".repeat(right_width)
-        },
-        theme.meta,
-    ));
+    if todo.is_first_line() {
+        spans.extend(right);
+    } else {
+        spans.push(Span::raw(" ".repeat(right_width)));
+    }
 
     let line = Line::from(spans);
     match cursor_row_style(is_cursor, is_editing, view, theme) {
@@ -182,14 +180,35 @@ fn cursor_row_style(
     })
 }
 
-fn right_column(todo: &TodoRow) -> String {
-    let mut right = match todo.columns.age {
-        Some(width) => format!("  {}", text::pad_start(&todo.age, width)),
-        None => String::new(),
+fn right_column(todo: &TodoRow, theme: &Theme) -> Vec<Span<'static>> {
+    let mut spans = Vec::new();
+    let mut cell = |value: &str, width: Option<usize>, style: Style| {
+        if let Some(width) = width {
+            spans.push(Span::raw("  "));
+            spans.push(Span::styled(text::pad_start(value, width), style));
+        }
     };
-    if let (Some(completed), Some(width)) = (&todo.completed_age, todo.columns.completed) {
-        right.push_str("  ");
-        right.push_str(&text::pad_start(completed, width));
+    let (priority, priority_style) = match todo.priority {
+        Some(Priority::Now) => ("now", theme.urgent),
+        Some(Priority::Soon) => ("soon", theme.soon),
+        Some(Priority::Someday) => ("someday", theme.dim),
+        None => ("", theme.meta),
+    };
+    cell(priority, todo.columns.priority, priority_style);
+    let (due, due_style) = match &todo.due {
+        Some((label, DueTone::Overdue)) => (label.as_str(), theme.urgent),
+        Some((label, DueTone::Today)) => (label.as_str(), theme.soon),
+        Some((label, DueTone::Upcoming)) => (label.as_str(), theme.meta),
+        None => ("", theme.meta),
+    };
+    cell(due, todo.columns.due, due_style);
+    cell(&todo.age, todo.columns.age, theme.meta);
+    if todo.columns.completed.is_some() {
+        cell(
+            todo.completed_age.as_deref().unwrap_or(""),
+            todo.columns.completed,
+            theme.meta,
+        );
     }
-    right
+    spans
 }

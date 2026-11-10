@@ -3,28 +3,28 @@ source: cli/tests/render.rs
 expression: text_of(terminal.backend().buffer())
 ---
   All Todos                        │                                                               │                                                  |
-                                   │      Todos                                           Created  │  buy milk                                        |
+                                   │      Todos                           Priority   Due  Created  │  buy milk                                        |
   Projects                         │                                                               │  now  ·  due tomorrow (15 Nov)                   |
-                                   │    ● buy milk                                             1d  │                                                  |
+                                   │    ● buy milk                             now  tmrw       1d  │                                                  |
   # Work                           │    ◯ call the plumber                                     5d  │  NEXT                                            |
     # Deep                         │                                                               │  👉  Open the #team-worms thread and confirm      |
                                    │                                                               │  stale ratings are fine                          |
-                                   │      # Work                                          Created  │                                                  |
+                                   │      # Work                          Priority   Due  Created  │                                                  |
                                    │                                                               │  LINKS                                           |
-                                   │    ◯ a deliberately long todo that has to wrap           12d  │  1 Slack thread                                  |
-                                   │      across more than one line to prove the scroll            │  2 github.com/freshaengineering/x/pull/2703      |
-                                   │      model counts them                                        │                                                  |
-                                   │                                                               │  CONTEXT                                         |
+                                   │    ◯ a deliberately long todo that                       12d  │  1 Slack thread                                  |
+                                   │      has to wrap across more than                             │  2 github.com/freshaengineering/x/pull/2703      |
+                                   │      one line to prove the scroll                             │                                                  |
+                                   │      model counts them                                        │  CONTEXT                                         |
                                    │                                                               │  • David is waiting on this since Monday         |
-                                   │      # Work / Deep                                   Created  │                                                  |
-                                   │                                                               │  SESSION                                         |
-                                   │    ◯ nested project todo                                  3d  │  cd ~/code/app-reviews && claude --resume 1234   |
                                    │                                                               │                                                  |
+                                   │      # Work / Deep                   Priority   Due  Created  │  SESSION                                         |
+                                   │                                                               │  cd ~/code/app-reviews && claude --resume 1234   |
+                                   │    ◯ nested project todo                                  3d  │                                                  |
                                    │                                                               │  p priority · y copy resume · 1-9 open link · o  |
-                                   │      Completed                            Created  Completed  │  hide                                            |
+                                   │                                                               │  hide                                            |
+                                   │      Completed                            Created  Completed  │                                                  |
                                    │                                                               │                                                  |
                                    │    ◉ ship the port                            30d         2d  │                                                  |
-                                   │                                                               │                                                  |
                                    │                                                               │                                                  |
                                    │                                                               │                                                  |
                                    │                                                               │                                                  |

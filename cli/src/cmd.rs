@@ -16,6 +16,7 @@ Subcommands (for scripts and agents; the TUI live-reloads):
   doer update <id> [fields]       Change fields; --link and --context append
   doer done <id> | undone <id> | rm <id>
   doer projects [--json]
+  doer projects add <name>...     Create projects (no-op if they exist)
 
 Fields:
   --text T            --priority now|soon|someday     --due YYYY-MM-DD
@@ -434,6 +435,19 @@ struct Row<'a> {
 
 fn projects(s: &mut Session, args: &[String]) -> anyhow::Result<()> {
     let f = parse(args)?;
+    if f.positional.first().map(String::as_str) == Some("add") {
+        let names = f.positional.get(1..).unwrap_or_default();
+        if names.is_empty() {
+            bail!("projects add needs a name");
+        }
+        for name in names {
+            let existed = s.resolve_project(name, false).is_ok();
+            let id = s.resolve_project(name, true)?;
+            let id = id.map(|id| id.to_string()).unwrap_or_default();
+            println!("{} {name} ({id})", if existed { "exists" } else { "created" });
+        }
+        return Ok(());
+    }
     let rows: Vec<Row> = s
         .projects
         .iter()
