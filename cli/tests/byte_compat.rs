@@ -203,6 +203,7 @@ fn a_todo_added_to_a_file_with_an_unreadable_entry_saves_alongside_it() {
         done: false,
         created_at: 1_786_500_000,
         completed_at: None,
+        meta: Default::default(),
     });
     store.save_all_todos(&todos).expect("save");
 
@@ -314,7 +315,7 @@ fn two_files_carrying_one_id_do_not_trade_their_unknown_fields() {
     fs::create_dir_all(home.path().join("projects")).expect("projects dir");
     fs::write(
         home.path().join("all-todos.json"),
-        br#"[{"id":"1111111111111111","text":"ungrouped","done":false,"created_at":1,"completed_at":null,"priority":1}]"#,
+        br#"[{"id":"1111111111111111","text":"ungrouped","done":false,"created_at":1,"completed_at":null,"flag":1}]"#,
     )
     .expect("seed all todos");
     fs::write(
@@ -338,7 +339,7 @@ fn two_files_carrying_one_id_do_not_trade_their_unknown_fields() {
         .find(|e| e["text"] == "ungrouped")
         .expect("the ungrouped todo is still there");
 
-    assert_eq!(ungrouped["priority"], 1, "its own unknown field survives");
+    assert_eq!(ungrouped["flag"], 1, "its own unknown field survives");
     assert!(
         ungrouped.get("tags").is_none(),
         "and the project file's unknown field was not injected into it: {ungrouped}"
@@ -352,7 +353,7 @@ fn a_todo_moved_to_another_file_keeps_the_fields_it_arrived_with() {
     fs::create_dir_all(home.path().join("projects")).expect("projects dir");
     fs::write(
         home.path().join("all-todos.json"),
-        br#"[{"id":"1111111111111111","text":"moves","done":false,"created_at":1,"completed_at":null,"priority":1}]"#,
+        br#"[{"id":"1111111111111111","text":"moves","done":false,"created_at":1,"completed_at":null,"flag":1}]"#,
     )
     .expect("seed");
 
@@ -373,5 +374,5 @@ fn a_todo_moved_to_another_file_keeps_the_fields_it_arrived_with() {
         &fs::read(home.path().join("projects/0123456789abcdef.json")).expect("read"),
     )
     .expect("valid json");
-    assert_eq!(raw["todos"][0]["priority"], 1);
+    assert_eq!(raw["todos"][0]["flag"], 1);
 }

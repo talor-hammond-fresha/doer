@@ -28,6 +28,7 @@ fn todo(id: &str, text: &str, age_days: i64) -> Todo {
         done: false,
         created_at: NOW - age_days * DAY,
         completed_at: None,
+        meta: Default::default(),
     }
 }
 
@@ -35,6 +36,7 @@ fn done(id: &str, text: &str, age_days: i64, completed_days: i64) -> Todo {
     Todo {
         done: true,
         completed_at: Some(NOW - completed_days * DAY),
+        meta: Default::default(),
         ..todo(id, text, age_days)
     }
 }

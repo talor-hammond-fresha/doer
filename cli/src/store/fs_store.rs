@@ -41,7 +41,21 @@ pub struct FsStore {
 
 /// The keys this build owns. Anything else in a todo object belongs to another version and
 /// is written back untouched.
-const KNOWN_TODO_KEYS: [&str; 5] = ["id", "text", "done", "created_at", "completed_at"];
+const KNOWN_TODO_KEYS: [&str; 13] = [
+    "id",
+    "text",
+    "done",
+    "created_at",
+    "completed_at",
+    "priority",
+    "due",
+    "remind_at",
+    "next_step",
+    "links",
+    "session",
+    "context",
+    "notes",
+];
 
 /// Entries we could not read, each with its index in the array it came from.
 type Unparsed = Vec<(usize, Value)>;

@@ -40,5 +40,5 @@ pub use input::{InputContext, KeyCode, KeyPress, Mods};
 pub use mode::{Focus, MainMode, SidebarMode};
 pub use project::{Project, Projects};
 pub use store::{Loaded, Problem, ProjectFile, Severity, Store, StoreError, StoreSnapshot, Target};
-pub use todo::Todo;
+pub use todo::{Link, Meta, Priority, Todo};
 pub use workspace::{Bucket, Workspace};

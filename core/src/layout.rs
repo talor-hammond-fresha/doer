@@ -960,6 +960,7 @@ mod narrow_tests {
             done: true,
             created_at: 0,
             completed_at: Some(0),
+            meta: Default::default(),
         };
         let without_date = Todo {
             id: TodoId::from("2222222222222222"),
@@ -967,6 +968,7 @@ mod narrow_tests {
             done: true,
             created_at: 0,
             completed_at: None,
+            meta: Default::default(),
         };
         let ws = Workspace::new(
             vec![with_date, without_date],
